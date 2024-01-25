@@ -2,10 +2,11 @@
 a enum to string converter code(c++) generator
 
 features:
-1. walk through all src files to find enum definition, and gen enum2str code(.cpp+.h) of them;
+1. can scan all src files/dirs recursively to find enum definition, and gen enum2str code(.cpp+.h) of them;
+2. can exclude files/dirs you don not want to scan;
 
 limitations:
-1. can not gen namespace prefix if enum is in a namespace;
+1. can not gen namespace prefix if a enum is in namespace or class or struct, you have to add prefix manually;
 2. can not gen code of a enum if it is a "typedef enum {...} enum_name" style;
 
 dependency:
