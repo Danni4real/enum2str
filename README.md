@@ -1,5 +1,5 @@
 # enum2str
-a enum to string converter code(c++) generator
+a enum to string converting code(c++) generator
 
 features:
 1. can scan all src files/dirs recursively to find enum definition, and gen enum2str code(.cpp+.h) of them;
