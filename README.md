@@ -2,12 +2,14 @@
 A enum to string converting code(c++) generator
 
 Features:
-1. can scan all src files/dirs recursively to find enum definition, and gen enum2str code(.cpp+.h) of them;
-2. can exclude files/dirs you don not want to scan;
+1. can scan src files recursively to detect enum definitions in headers, and gen enum2str code(.cpp+.h) of them;
+2. can exclude files/dirs you don't want to scan;
+3. can detect enum definitions in namespace;
+4. can detect enum definitions in public part of class/struct;
 
 Limitations:
-1. can not gen namespace prefix if a enum is in namespace or class or struct, you have to add prefix manually;
-2. can not gen code of a enum if it is a "typedef enum {...} enum_name" style;
+1. can not detect enum definition which is a "typedef enum {...} enum_name";
+2. can not detect enum definition which is in a "typedef struct {...} struct_name";
 
 Dependency:
 1. python3;
