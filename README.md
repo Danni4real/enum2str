@@ -1,5 +1,5 @@
 # enum2str
-A script can generate c++ code that can convert enum to string 
+A script can generate c++ code that converts enum to string 
 
 Features:
 1. can scan src files recursively to detect enum definitions in headers, and gen enum2str code(.cpp .h) of them;
