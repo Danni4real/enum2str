@@ -6,11 +6,15 @@ import io
 import re
 import pyparsing as pp
 
-SRC_DIR = '../'
-EXCLUDE_DIRS = {'tests', 'gal'}
-EXCLUDE_FILES = {'AutoLog.h'}
+TEST_MODE = True
+# TEST_MODE = False
+
+SRC_DIR = '.'
+EXCLUDE_DIRS = {'f'}
+EXCLUDE_FILES = {'d.h'}
 OUTPUT_CPP_FILE = 'enum2str.cpp'
 OUTPUT_HEAD_FILE = 'enum2str.h'
+TEST_HEAD_FILE = "enum2str_gen_test.h"
 
 KEYWORD_USING = 'using'
 KEYWORD_TYPEDEF = 'typedef'
@@ -27,8 +31,12 @@ def scan_dir(base_dir):
     for root, dirs, files in os.walk(base_dir, topdown=True):
         dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
         for file in files:
-            if file.endswith('.h') and file not in EXCLUDE_FILES:
-                yield os.path.join(root, file)  # relative path of file
+            if TEST_MODE:
+                if file.endswith(TEST_HEAD_FILE):
+                    yield os.path.join(root, file)  # relative path of file
+            else:
+                if file.endswith('.h') and not file.endswith(TEST_HEAD_FILE) and file not in EXCLUDE_FILES:
+                    yield os.path.join(root, file)  # relative path of file
 
 
 def rm_comments(src):
@@ -43,20 +51,28 @@ def rm_comments(src):
         r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
         re.DOTALL | re.MULTILINE
     )
-    return re.sub(pattern, replacer, src)
+    ret = re.sub(pattern, replacer, src)
+
+    if TEST_MODE:
+        print("\n\nAfter rm_comments:\n%s" % ret)
+    return ret
 
 
 # remove potential '{' and '}' in string literal
 def rm_string_literal(src):
-    return re.sub("\".*?\"", "\"\"", src)
+    ret = re.sub("\".*?\"", "\"\"", src)
+
+    if TEST_MODE:
+        print("\n\nAfter rm_string_literal:\n%s" % ret)
+    return ret
 
 
 def rm_macro(src):
-    return re.sub("#elif .*?#endif", "#endif", re.sub("#else .*?#endif", "#endif", src))
+    ret = re.sub("#elif .*?#endif", "#endif", re.sub("#else .*?#endif", "#endif", src))
 
-
-def rm_all_spaces(src):
-    return src.replace(' ', '')
+    if TEST_MODE:
+        print("\n\nAfter rm_macro:\n%s" % ret)
+    return ret
 
 
 def will_encounter_semicolon_before_lbrace(lst, start):
@@ -99,14 +115,21 @@ def rm_other_irrelevant(lst):
             ret_str += lst[i]
         else:
             pass
+
+    if TEST_MODE:
+        print("\n\nAfter rm_other_irrelevant:\n%s" % ret_str)
     return ret_str
 
 
 #  for parse purpose
-def add_extra_space(text):
-    return (
-        text.replace(';', ' ; ').replace(':', ' : ').replace(' :  : ', '::').replace('{', ' { ').replace('}', ' } ').
+def add_extra_space(src):
+    ret = (
+        src.replace(';', ' ; ').replace(':', ' : ').replace(' :  : ', '::').replace('{', ' { ').replace('}', ' } ').
         replace('\t', ' ').replace('\n', ' ').replace('\r', ' '))
+
+    if TEST_MODE:
+        print("\n\nAfter add_extra_space:\n%s" % ret)
+    return ret
 
 
 #  sink a block's top namespace/class/struct/enum to next layer
@@ -150,13 +173,55 @@ def sink_namespace(src):
             merged += lst[i]
 
     if merged == src:
+        if TEST_MODE:
+            print("\n\nAfter sink_namespace:\n%s" % merged)
         return merged
     else:
         return sink_namespace(merged)
 
 
-def to_list(text):
-    return text.split()
+def to_list(src):
+    ret = src.split()
+
+    if TEST_MODE:
+        print("\n\nAfter to_list:\n%s" % ' '.join(ret))
+    return ret
+
+
+def next_lbrace_index(lst, start):
+    i = start
+    while lst[i] != '{':
+        i += 1
+    return i
+
+
+def trim_abnormal_class(lst):
+    ret_lst = []
+    skip = 0
+    for i in range(len(lst)):
+        if skip > 0:
+            skip -= 1
+            continue
+
+        # typedef anonymous struct
+        if lst[i] == KEYWORD_TYPEDEF and lst[i + 1] == KEYWORD_STRUCT and lst[i + 2] == '{':
+            size = block_size(lst, i)
+            if lst[i + size] != ';':  # anonymous struct with alias
+                ret_lst.append(lst[i + 1])
+                ret_lst.append(lst[i + size])  # move alias name from tail to head
+                for ii in range(i + 2, i + size):
+                    ret_lst.append(lst[ii])
+                skip = size
+        elif lst[i] == KEYWORD_CLASS and lst[i + 1] == '{':  # anonymous class
+            ret_lst.append("anonymous_class")
+        elif lst[i] == KEYWORD_STRUCT and lst[i + 1] == '{':  # anonymous struct
+            ret_lst.append("anonymous_struct")
+        else:
+            ret_lst.append(lst[i])
+
+    if TEST_MODE:
+        print("\n\nAfter trim_abnormal_class:\n%s" % " ".join(ret_lst))
+    return ret_lst
 
 
 def trim_abnormal_enum(lst):
@@ -167,26 +232,38 @@ def trim_abnormal_enum(lst):
             skip -= 1
             continue
 
-        if lst[i] == KEYWORD_ENUM and lst[i + 1] == '{':  # anonymous enum
+        # typedef anonymous enum
+        if lst[i] == KEYWORD_TYPEDEF and lst[i + 1] == KEYWORD_ENUM and lst[i + 2] == '{':
+            size = block_size(lst, i)
+            if lst[i + size] != ';':  # anonymous enum with alias
+                ret_lst.append(lst[i + 1])
+                ret_lst.append(lst[i + size])  # move alias name from tail to head
+                for ii in range(i + 2, i + size):
+                    ret_lst.append(lst[ii])
+                skip = size
+        elif lst[i] == KEYWORD_ENUM and lst[i + 1] == '{':  # anonymous enum
             ret_lst.append("anonymous_enum")
         elif lst[i] == KEYWORD_ENUM and lst[i + 1] == ':':  # anonymous enum with type
             ret_lst.append("anonymous_enum")
-            skip = 2
-        elif lst[i] == KEYWORD_ENUM and lst[i + 1] == KEYWORD_CLASS and lst[i + 3] == ':':  # enum class with type
+        elif (lst[i] == KEYWORD_ENUM and  # enum class/struct with type
+              (lst[i + 1] == KEYWORD_CLASS or lst[i + 1] == KEYWORD_STRUCT) and lst[i + 3] == ':'):
             ret_lst.append(lst[i])
             ret_lst.append(lst[i + 2])
-            skip = 4
-        elif lst[i] == KEYWORD_ENUM and lst[i + 1] == KEYWORD_CLASS:  # enum class
+            skip = next_lbrace_index(lst, i) - i - 1
+        elif (lst[i] == KEYWORD_ENUM and
+              (lst[i + 1] == KEYWORD_CLASS or lst[i + 1] == KEYWORD_STRUCT)):  # enum class/struct
             ret_lst.append(lst[i])
             ret_lst.append(lst[i + 2])
             skip = 2
         elif lst[i] == KEYWORD_ENUM and lst[i + 2] == ':':  # enum with type
             ret_lst.append(lst[i])
             ret_lst.append(lst[i + 1])
-            skip = 3
+            skip = next_lbrace_index(lst, i) - i - 1
         else:
             ret_lst.append(lst[i])
 
+    if TEST_MODE:
+        print("\n\nAfter trim_abnormal_enum:\n%s" % " ".join(ret_lst))
     return ret_lst
 
 
@@ -203,31 +280,37 @@ def rm_not_class_define(lst):
             ret_lst.append("invalid_class")
         elif lst[i] == KEYWORD_STRUCT and will_encounter_semicolon_before_lbrace(lst, i):
             ret_lst.append("invalid_struct")
-        elif lst[i] == KEYWORD_TYPEDEF and lst[i + 1] == KEYWORD_STRUCT:
-            ret_lst.append(KEYWORD_TYPEDEF)
-            ret_lst.append("invalid_struct")
-            skip = 1
         else:
             ret_lst.append(lst[i])
+
+    if TEST_MODE:
+        print("\n\nAfter rm_not_class_define:\n%s" % " ".join(ret_lst))
     return ret_lst
 
 
-def rm_using_namespace(lst):
+def rm_using_statement(lst):
     ret_lst = []
     skip = 0
     for i in range(len(lst)):
         if skip > 0:
             skip -= 1
             continue
+
         if lst[i] == KEYWORD_USING and lst[i + 1] == KEYWORD_NAMESPACE:
             ret_lst.append("using_namespace")
             skip = 1
+        elif lst[i] == KEYWORD_USING and lst[i + 1] == KEYWORD_ENUM:
+            ret_lst.append("using_enum")
+            skip = 1
         else:
             ret_lst.append(lst[i])
+
+    if TEST_MODE:
+        print("\n\nAfter rm_using_statement:\n%s" % " ".join(ret_lst))
     return ret_lst
 
 
-def rm_not_public_part(lst):
+def rm_not_public_part_in_class(lst):
     ret_lst = []
     public_access_stack = []  # is/isn't public access control of each brace layer
     skip = 0
@@ -254,7 +337,6 @@ def rm_not_public_part(lst):
         else:
             if False not in public_access_stack:
                 ret_lst.append(lst[i])
-
     return ret_lst
 
 
@@ -294,26 +376,29 @@ def rm_irrelevant_in_class(lst):
             skip = 1
         elif lst[i] == KEYWORD_CLASS or lst[i] == KEYWORD_STRUCT:
             class_size = block_size(lst, i)
-            ret_lst.extend(rm_not_public_part(rm_class_inheritance(lst[i:i + class_size])))
+            ret_lst.extend(rm_not_public_part_in_class(rm_class_inheritance(lst[i:i + class_size])))
             skip = class_size
         else:
             ret_lst.append(lst[i])
+
+    if TEST_MODE:
+        print("\n\nAfter rm_irrelevant_in_class:\n%s" % " ".join(ret_lst))
     return ret_lst
 
 
-def process(text):
+def process(src):
     return sink_namespace(
-        rm_all_spaces(
-            rm_other_irrelevant(
-                rm_irrelevant_in_class(
-                    trim_abnormal_enum(
+        rm_other_irrelevant(
+            rm_irrelevant_in_class(
+                trim_abnormal_enum(
+                    trim_abnormal_class(
                         rm_not_class_define(
-                            rm_using_namespace(
+                            rm_using_statement(
                                 to_list(
                                     rm_macro(
                                         add_extra_space(
                                             rm_string_literal(
-                                                rm_comments(text))))))))))))
+                                                rm_comments(src))))))))))))
 
 
 # main starts
