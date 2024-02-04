@@ -8,6 +8,10 @@ char StringLiteral[] = " namespace { class { struct { enum e {";
 class ForwardDeclarationClass;
 struct ForwardDeclarationStruct;
 
+template <class T> T max(T x, T y) {
+  return (x > y) ? x : y;
+}
+
 #ifdef Case_1
 namespace Name_1{
 #elif defined Case_2
