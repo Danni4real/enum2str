@@ -1,23 +1,25 @@
 # tool used to gen enum2str source code
 # needed : pyparsing version >= 3.1.0
+# gcc setting : set -save-temps to generate preprocessed files
+# usage: 1.compile project; 2.run this script; 3.use generated code(.h + .cpp);
 
 import os
 import io
 import re
 import pyparsing as pp
 
+# DEBUG_MODE = True
+DEBUG_MODE = False
+
 # TEST_MODE = True
 TEST_MODE = False
 
-# Recommend: for porting convenience, use relative path as SRC_DIR, EXCLUDE_DIRS, EXCLUDE_FILES
-SRC_DIR = '.'
-EXCLUDE_DIRS = {'./example/f',
-                './example/g'}
-EXCLUDE_FILES = {'./example/c.h',
-                 './example/d.h'}
-OUTPUT_CPP_FILE = 'enum2str.cpp'
-OUTPUT_HEAD_FILE = 'enum2str.h'
-TEST_HEAD_FILE = "enum2str_gen_test.h"
+# Recommend: for porting convenience, use relative path as SRC_DIR, BUILD_DIR
+SRC_DIR = '.'  # project src directory
+BUILD_DIR = '.'  # project build directory, which includes all preprocessed files(.ii)
+OUTPUT_CPP_FILE = 'enum2str.cpp'  # generated src file
+OUTPUT_HEAD_FILE = 'enum2str.h'  # generated header file
+TEST_HEAD_FILE = "enum2str_gen_test.h"  # for test purpose
 
 KEYWORD_USING = 'using'
 KEYWORD_TYPEDEF = 'typedef'
@@ -28,6 +30,7 @@ KEYWORD_STRUCT = 'struct'
 KEYWORD_PRIVATE = 'private'
 KEYWORD_PUBLIC = 'public'
 KEYWORD_PROTECTED = 'protected'
+KEYWORD_ATTRIBUTE = '__attribute__'
 
 
 def abs_path(path):
@@ -37,48 +40,46 @@ def abs_path(path):
 def scan_dir(base_dir):
     for root, dirs, files in os.walk(abs_path(base_dir), topdown=True):
         for file in files:
-            if TEST_MODE:
-                if file.endswith(TEST_HEAD_FILE):
-                    yield os.path.join(root, file)  # relative path of file
-            else:
-                if file.endswith('.h') and not file.endswith(TEST_HEAD_FILE):
-                    yield os.path.join(root, file)  # relative path of file
-
-
-def rm_comments(src):
-    def replacer(match):
-        s = match.group(0)
-        if s.startswith('/'):
-            return " "  # note: a space and not an empty string
-        else:
-            return s
-
-    pattern = re.compile(
-        r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
-        re.DOTALL | re.MULTILINE
-    )
-    ret = re.sub(pattern, replacer, src)
-
-    if TEST_MODE:
-        print("\n\nAfter rm_comments:\n%s" % ret)
-    return ret
+            if file.endswith('.ii'):  # in gcc, preprocessed files end with .ii
+                yield os.path.join(root, file)
 
 
 # remove potential '{' and '}' in string literal
 def rm_string_literal(src):
     ret = re.sub("\".*?\"", "\"\"", src)
 
-    if TEST_MODE:
+    if DEBUG_MODE:
         print("\n\nAfter rm_string_literal:\n%s" % ret)
     return ret
 
 
-def rm_macro(src):
-    ret = re.sub("#elif .*?#endif", "#endif", re.sub("#else .*?#endif", "#endif", src))
+#  rm gcc __attribute__ related items
+def rm__attribute__(lst):
+    ret_lst = []
+    skip = 0
 
-    if TEST_MODE:
-        print("\n\nAfter rm_macro:\n%s" % ret)
-    return ret
+    for i in range(len(lst)):
+        if skip > 0:
+            skip -= 1
+            continue
+        if ((lst[i] == KEYWORD_ATTRIBUTE and lst[i + 1].startswith('(')) or
+                lst[i].startswith(KEYWORD_ATTRIBUTE + '(')):
+            ii = i
+            lbrace_num = 0
+            rbrace_num = 0
+            while True:
+                lbrace_num += lst[ii].count('(')
+                rbrace_num += lst[ii].count(')')
+                if lbrace_num == rbrace_num and lbrace_num != 0:  # __attribute__ XXX ends
+                    break
+                ii += 1
+            skip = ii - i
+        else:
+            ret_lst.append(lst[i])
+
+    if DEBUG_MODE:
+        print("\n\nAfter rm__attribute__:\n%s" % " ".join(ret_lst))
+    return ret_lst
 
 
 def will_encounter_semicolon_before_lbrace(lst, start):
@@ -135,7 +136,7 @@ def rm_other_irrelevant(lst):
         else:
             pass
 
-    if TEST_MODE:
+    if DEBUG_MODE:
         print("\n\nAfter rm_other_irrelevant:\n%s" % ret_str)
     return ret_str
 
@@ -144,9 +145,10 @@ def rm_other_irrelevant(lst):
 def add_extra_space(src):
     ret = (
         src.replace(';', ' ; ').replace(':', ' : ').replace(' :  : ', '::').replace('{', ' { ').replace('}', ' } ').
-        replace('<', ' < ').replace('>', ' > ').replace('\t', ' ').replace('\n', ' ').replace('\r', ' '))
+        replace(',', ' , ').replace('=', ' = ').replace('<', ' < ').replace('>', ' > ').
+        replace('\t', ' ').replace('\n', ' ').replace('\r', ' '))
 
-    if TEST_MODE:
+    if DEBUG_MODE:
         print("\n\nAfter add_extra_space:\n%s" % ret)
     return ret
 
@@ -192,7 +194,7 @@ def sink_namespace(src):
             merged += lst[i]
 
     if merged == src:
-        if TEST_MODE:
+        if DEBUG_MODE:
             print("\n\nAfter sink_namespace:\n%s" % merged)
         return merged
     else:
@@ -202,7 +204,7 @@ def sink_namespace(src):
 def to_list(src):
     ret = src.split()
 
-    if TEST_MODE:
+    if DEBUG_MODE:
         print("\n\nAfter to_list:\n%s" % ' '.join(ret))
     return ret
 
@@ -238,7 +240,7 @@ def trim_abnormal_class(lst):
         else:
             ret_lst.append(lst[i])
 
-    if TEST_MODE:
+    if DEBUG_MODE:
         print("\n\nAfter trim_abnormal_class:\n%s" % " ".join(ret_lst))
     return ret_lst
 
@@ -281,7 +283,7 @@ def trim_abnormal_enum(lst):
         else:
             ret_lst.append(lst[i])
 
-    if TEST_MODE:
+    if DEBUG_MODE:
         print("\n\nAfter trim_abnormal_enum:\n%s" % " ".join(ret_lst))
     return ret_lst
 
@@ -304,7 +306,7 @@ def rm_not_class_define(lst):
         else:
             ret_lst.append(lst[i])
 
-    if TEST_MODE:
+    if DEBUG_MODE:
         print("\n\nAfter rm_not_class_define:\n%s" % " ".join(ret_lst))
     return ret_lst
 
@@ -326,7 +328,7 @@ def rm_using_statement(lst):
         else:
             ret_lst.append(lst[i])
 
-    if TEST_MODE:
+    if DEBUG_MODE:
         print("\n\nAfter rm_using_statement:\n%s" % " ".join(ret_lst))
     return ret_lst
 
@@ -402,19 +404,62 @@ def rm_irrelevant_in_class(lst):
         else:
             ret_lst.append(lst[i])
 
-    if TEST_MODE:
+    if DEBUG_MODE:
         print("\n\nAfter rm_irrelevant_in_class:\n%s" % " ".join(ret_lst))
     return ret_lst
 
 
-def user_selected(path):
-    for d in EXCLUDE_DIRS:
-        if path.startswith(abs_path(d)):
+def project_contains(path):
+    if TEST_MODE:
+        if path.endswith(TEST_HEAD_FILE):
+            return True
+        else:
             return False
-    for f in EXCLUDE_FILES:
-        if path == abs_path(f):
+    else:
+        if path.startswith(abs_path(SRC_DIR)) and not path.endswith(TEST_HEAD_FILE):
+            return True
+        else:
             return False
-    return True
+
+
+def print_dict(d):
+    for k in d:
+        print('\n')
+        print(k)
+        print(" ".join(d[k].split()))
+
+
+processed_header_list = [""]
+
+
+def extract_header_contents(src):
+    global processed_header_list
+    header_content_dict = {}  # header abs path as key, header content as value
+    header_key = ""
+    ignore_below_lines = True
+    for line in src.splitlines():
+        item_list = line.split()
+        if len(item_list) >= 3 and item_list[0] == '#' and item_list[1].isnumeric() and item_list[2].startswith('"'):
+            potential_header_path = item_list[2][1:-1]
+            if potential_header_path.endswith('.h'):
+                header = abs_path(potential_header_path)
+                if project_contains(header) and header not in processed_header_list:
+                    ignore_below_lines = False
+                    header_key = header
+                else:
+                    ignore_below_lines = True
+            else:
+                ignore_below_lines = True
+        else:
+            if not ignore_below_lines:
+                if header_content_dict.get(header_key) is None:
+                    header_content_dict[header_key] = line
+                else:
+                    header_content_dict[header_key] = header_content_dict[header_key] + ' ' + line
+
+    processed_header_list.extend(header_content_dict.keys())
+    processed_header_list = list(set(processed_header_list))
+    return header_content_dict
 
 
 def process(src):
@@ -425,11 +470,10 @@ def process(src):
                     trim_abnormal_class(
                         rm_not_class_define(
                             rm_using_statement(
-                                to_list(
-                                    rm_macro(
+                                rm__attribute__(
+                                    to_list(
                                         add_extra_space(
-                                            rm_string_literal(
-                                                rm_comments(src))))))))))))
+                                            rm_string_literal(src)))))))))))
 
 
 # main starts
@@ -461,32 +505,29 @@ ENUM_BLOCK = LBRACE + ENUM_VALUE_COMBO_LIST("value_list") + RBRACE
 cpp_cache = io.StringIO()
 head_cache = io.StringIO()
 
-# find instances of enums ignoring other syntax
-for input_file_path in scan_dir(SRC_DIR):
-    if not user_selected(input_file_path):
-        continue
+for ii_file_path in scan_dir(BUILD_DIR):
+    print("scanning %s" % ii_file_path)
 
-    print("scanning %s" % input_file_path)
+    header_content_dict = extract_header_contents(open(ii_file_path, 'r').read())
+    for header_path in header_content_dict:
+        header_content = header_content_dict[header_path]
+        header_name = header_path.split('/')[-1]
+        header_included = False
+        for enum, start, stop in ENUM_BLOCK.scan_string(process(header_content)):
+            if not header_included:
+                header_included = True
+                output_head_file.write("#include \"%s\"\n" % header_name)
 
-    input_file = open(input_file_path, 'r')
-    input_file_name = input_file_path.split('/')[-1]
+            func_head_inserted = False
+            for item in enum.value_list:
+                if not func_head_inserted:
+                    func_head_inserted = True
+                    head_cache.write("std::string enum2str(%s e);\n" % '::'.join(item.value.split('::')[0:-1]))
+                    cpp_cache.write("std::string enum2str(%s e) {\n" % '::'.join(item.value.split('::')[0:-1]))
+                    cpp_cache.write("  switch (e) {\n")
 
-    input_file_included = False
-    for enum, start, stop in ENUM_BLOCK.scan_string(process(input_file.read())):
-        if not input_file_included:
-            input_file_included = True
-            output_head_file.write("#include \"%s\"\n" % input_file_name)
-
-        func_head_inserted = False
-        for item in enum.value_list:
-            if not func_head_inserted:
-                func_head_inserted = True
-                head_cache.write("std::string enum2str(%s e);\n" % '::'.join(item.value.split('::')[0:-1]))
-                cpp_cache.write("std::string enum2str(%s e) {\n" % '::'.join(item.value.split('::')[0:-1]))
-                cpp_cache.write("  switch (e) {\n")
-
-            cpp_cache.write("    case %s: return \"%s\";\n" % (item.value, item.value.split('::')[-1]))
-        cpp_cache.write("    default: return \"\";\n  }\n}\n\n")
+                cpp_cache.write("    case %s: return \"%s\";\n" % (item.value, item.value.split('::')[-1]))
+            cpp_cache.write("    default: return \"\";\n  }\n}\n\n")
 
 output_cpp_file.write(cpp_cache.getvalue())
 output_head_file.write("\n")
