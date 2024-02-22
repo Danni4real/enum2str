@@ -81,7 +81,11 @@ enum class EnumClassUint : unsigned int{EnumClassUintValue_1=1,EnumClassUintValu
 
 enum struct EnumStruct{EnumStructValue_1,EnumStructValue_2};
 enum struct EnumStructInt :int{EnumStructIntValue_1=-1,EnumStructIntValue_2 =2,};
-enum struct EnumStructUint : unsigned int{EnumStructUintValue_1 __attribute__((__deprecated__))=1,EnumStructUintValue_2 __attribute__ ( ( __deprecated__)), EnumStructUintValue_3 __attribute__(( __deprecated__ )) = 3};
+enum struct EnumStructUint : unsigned int{
+  EnumStructUintValue_1 __attribute__((__deprecated__))= 0x0001,
+  EnumStructUintValue_2 __attribute__ ( ( __deprecated__))= 1 << 1,
+  EnumStructUintValue_3 __attribute__ ((__deprecated__ ) )= 1 + 2,
+  EnumStructUintValue_4 __attribute__(( __deprecated__ )) = 0XFFFF};
 /* test comments {{
    * {{
    */
