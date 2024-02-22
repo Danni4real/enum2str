@@ -15,8 +15,8 @@ DEBUG_MODE = False
 TEST_MODE = False
 
 # Recommend: for porting convenience, use relative path as SRC_DIR, BUILD_DIR
-SRC_DIR = '../'  # project src directory
-BUILD_DIR = '../../Build'  # project build directory, which includes all preprocessed files(.ii)
+SRC_DIR = '.'  # project src directory
+BUILD_DIR = '.'  # project build directory, which includes all preprocessed files(.ii)
 OUTPUT_CPP_FILE = 'enum2str.cpp'  # generated src file
 OUTPUT_HEAD_FILE = 'enum2str.h'  # generated header file
 TEST_HEAD_FILE = "enum2str_gen_test.h"  # for test purpose
