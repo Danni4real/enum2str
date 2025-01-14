@@ -17,6 +17,8 @@ TEST_MODE = False
 # Recommend: for porting convenience, use relative path as SRC_DIR, BUILD_DIR
 SRC_DIR = '.'  # project src directory
 BUILD_DIR = '.'  # project build directory, which includes all preprocessed files(.ii)
+WILD_CARD_HEADERS_LIST = [] # some headers are not in SRC_DIR, but you still want to enum2str their enums, put these headers' abs path in this list
+
 OUTPUT_CPP_FILE = 'enum2str.cpp'  # generated src file
 OUTPUT_HEAD_FILE = 'enum2str.h'  # generated header file
 TEST_HEAD_FILE = "enum2str_gen_test.h"  # for test purpose
@@ -417,6 +419,8 @@ def project_contains(path):
             return False
     else:
         if path.startswith(abs_path(SRC_DIR)) and not path.endswith(TEST_HEAD_FILE):
+            return True
+        elif path in WILD_CARD_HEADERS_LIST:
             return True
         else:
             return False
