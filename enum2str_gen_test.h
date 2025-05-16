@@ -1,26 +1,15 @@
-#ifndef SINK_ENUM2STR_GEN_TEST_H
-#define SINK_ENUM2STR_GEN_TEST_H
+#ifndef ENUM2STR_GEN_TEST_H
+#define ENUM2STR_GEN_TEST_H
 
 #include <string>
 #include <chrono>
 
-char StringLiteral[] = " namespace { class { struct { enum e {";
 class ForwardDeclarationClass;
 struct ForwardDeclarationStruct;
 
 template <class T> T max(T x, T y) {
   return (x > y) ? x : y;
 }
-
-#ifdef Case_1
-namespace Name_1{
-#elif defined Case_2
-namespace Name_1{
-#elif defined Case_3
-namespace Name_1{
-#else
-namespace Name_1{
-#endif
 
 typedef struct {
   enum EnumAnonyTypeDefStructWithAlias {EnumAnonyTypeDefStructWithAliasValue_1,EnumAnonyTypeDefStructWithAliasValue_2,};
@@ -77,19 +66,18 @@ namespace Name_3 {
 enum class EnumClassUint : unsigned int{EnumClassUintValue_1=1,EnumClassUintValue_2, EnumClassUintValue_3 = 3};
 }
 }
-}
 
 enum struct EnumStruct{EnumStructValue_1,EnumStructValue_2};
 enum struct EnumStructInt :int{EnumStructIntValue_1=-1,EnumStructIntValue_2 =2,};
 enum struct EnumStructUint : unsigned int{
   EnumStructUintValue_1 __attribute__((__deprecated__))= 0x0001,
-  EnumStructUintValue_2 __attribute__ ( ( __deprecated__))= 1 << 1,
+  EnumStructUintValue_2 __attribute__ ( ( __deprecated__))= 1 << 1, /* test comments {{ */
   EnumStructUintValue_3 __attribute__ ((__deprecated__ ) )= 1 + 2,
   EnumStructUintValue_4 __attribute__(( __deprecated__ )) = 0XFFFF};
 /* test comments {{
    * {{
    */
-#endif //SINK_ENUM2STR_GEN_TEST_H
+#endif //ENUM2STR_GEN_TEST_H
 
 
 

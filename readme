@@ -1,25 +1,13 @@
 A python script, which generate C++ enum2str converter code.
 
 Features:
-1. walk through all preprocessed files in your project to find all kinds of enum definitions, then generate enum to string converters;
+1. walk through headers you specified to find all kinds of enum definitions, then generate enum to string converters;
 
 Dependency:
 1. python3;
 2. pyparsing >= 3.1.0;
-3. g++;
 
 Usage:
-1. compile project using "g++ -save-temps=obj ..." to generate preprocessed files;
-2. set project src directory and build directory in enum2str_gen.py;
-3. run enum2str_gen.py to generate enum2str.cpp and enum2str.h;
-4. include enum2str.h in src files, which want to use string form of enums;
-
-Example:
-1. g++ -save-temps=obj -c main.cpp -o main.o;
-2. set SRC_DIR = '.' and BUILD_DIR = '.' in enum2str_gen.py;
-3. set WILD_CARD_HEADERS_LIST to add headers, which are not in your project, to scan scope;
-4. run "python3 enum2str_gen.py";
-5. add '#include "enum2str.h"' in main.cpp;
-6. add 'std::cout << enum2str(Red) << std::endl;' in main.cpp;
-7. g++ main.cpp enum2str.cpp -o enum2str;
-8. run enum2str;
+1. set PROJECT_DIR, EXCLUDE_HEADERS_LIST and WILD_CARD_HEADERS_LIST in enum2str_gen.py;
+2. run enum2str_gen.py to generate enum2str.cpp and enum2str.h;
+3. include enum2str.h in C++ src files;

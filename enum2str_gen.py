@@ -1,27 +1,33 @@
-# tool used to gen enum2str source code
-# needed : pyparsing version >= 3.1.0
-# gcc setting : set -save-temps to generate preprocessed files
-# usage: 1.compile project; 2.run this script; 3.use generated code(.h + .cpp);
+# A tool can generate enum2str c++ code
+
+# needed:
+# 1. python3;
+# 2. pyparsing version >= 3.1.0;
+
+# usage:
+# 1. set PROJECT_DIR, EXCLUDE_HEADERS_LIST and WILD_CARD_HEADERS_LIST;
+# 2. run this script;
+# 3. use generated code(.h + .cpp);
 
 import os
 import io
 import re
 import pyparsing as pp
 
-# DEBUG_MODE = True
-DEBUG_MODE = False
+DEBUG_MODE = True
 
-# TEST_MODE = True
-TEST_MODE = False
-
-# Recommend: for porting convenience, use relative path as SRC_DIR, BUILD_DIR
-SRC_DIR = '.'  # project src directory
-BUILD_DIR = '.'  # project build directory, which includes all preprocessed files(.ii)
-WILD_CARD_HEADERS_LIST = [] # some headers are not in SRC_DIR, but you still want to enum2str their enums, put these headers' abs path in this list
+PROJECT_DIR = "/home/dan/tools/enum2str-main" # abs path
+EXCLUDE_HEADERS_LIST = [
+    # if you want to exclude some headers in the project or
+    # some headers cause the script run failed,
+    # add their abs paths here
+    "/home/dan/tools/enum2str-main/enum2str_gen_test.h"
+]
+WILD_CARD_HEADERS_LIST = [ # if you want to use enums which are not in the project, add their headers' abs paths here
+]
 
 OUTPUT_CPP_FILE = 'enum2str.cpp'  # generated src file
 OUTPUT_HEAD_FILE = 'enum2str.h'  # generated header file
-TEST_HEAD_FILE = "enum2str_gen_test.h"  # for test purpose
 
 KEYWORD_USING = 'using'
 KEYWORD_TYPEDEF = 'typedef'
@@ -34,16 +40,13 @@ KEYWORD_PUBLIC = 'public'
 KEYWORD_PROTECTED = 'protected'
 KEYWORD_ATTRIBUTE = '__attribute__'
 
-
-def abs_path(path):
-    return os.path.abspath(path)
-
-
-def scan_dir(base_dir):
-    for root, dirs, files in os.walk(abs_path(base_dir), topdown=True):
+def find_headers_recursively(dir, exclude_headers_path_list):
+    for root, dirs, files in os.walk(dir, topdown=True):
         for file in files:
-            if file.endswith('.ii'):  # in gcc, preprocessed files end with .ii
-                yield os.path.join(root, file)
+            if file.endswith('.h') or file.endswith('.hpp'):
+                path = os.path.join(root, file)
+                if path not in exclude_headers_path_list:
+                    yield path
 
 
 # remove potential '{' and '}' in string literal
@@ -255,8 +258,7 @@ def trim_abnormal_enum(lst):
             skip -= 1
             continue
 
-        # typedef anonymous enum
-        if lst[i] == KEYWORD_TYPEDEF and lst[i + 1] == KEYWORD_ENUM and lst[i + 2] == '{':
+        if lst[i] == KEYWORD_TYPEDEF and lst[i + 1] == KEYWORD_ENUM and lst[i + 2] == '{': # typedef anonymous enum
             size = block_size(lst, i)
             if lst[i + size] != ';':  # anonymous enum with alias
                 ret_lst.append(lst[i + 1])
@@ -411,59 +413,10 @@ def rm_irrelevant_in_class(lst):
     return ret_lst
 
 
-def project_contains(path):
-    if TEST_MODE:
-        if path.endswith(TEST_HEAD_FILE):
-            return True
-        else:
-            return False
-    else:
-        if path.startswith(abs_path(SRC_DIR)) and not path.endswith(TEST_HEAD_FILE):
-            return True
-        elif path in WILD_CARD_HEADERS_LIST:
-            return True
-        else:
-            return False
-
-
-def print_dict(d):
-    for k in d:
-        print('\n')
-        print(k)
-        print(" ".join(d[k].split()))
-
-
-processed_header_list = [""]
-
-
-def extract_header_contents(src):
-    global processed_header_list
-    header_content_dict = {}  # header abs path as key, header content as value
-    header_key = ""
-    ignore_below_lines = True
-    for line in src.splitlines():
-        item_list = line.split()
-        if len(item_list) >= 3 and item_list[0] == '#' and item_list[1].isnumeric() and item_list[2].startswith('"'):
-            potential_header_path = item_list[2][1:-1]
-            if potential_header_path.endswith('.h'):
-                header = abs_path(potential_header_path)
-                if project_contains(header) and header not in processed_header_list:
-                    ignore_below_lines = False
-                    header_key = header
-                else:
-                    ignore_below_lines = True
-            else:
-                ignore_below_lines = True
-        else:
-            if not ignore_below_lines:
-                if header_content_dict.get(header_key) is None:
-                    header_content_dict[header_key] = line
-                else:
-                    header_content_dict[header_key] = header_content_dict[header_key] + ' ' + line
-
-    processed_header_list.extend(header_content_dict.keys())
-    processed_header_list = list(set(processed_header_list))
-    return header_content_dict
+def rm_comments(src):
+    src = re.sub(r'/\*.*?\*/', '', src, flags=re.DOTALL)
+    src = re.sub(r'//.*', '', src)
+    return src
 
 
 def process(src):
@@ -477,7 +430,8 @@ def process(src):
                                 rm__attribute__(
                                     to_list(
                                         add_extra_space(
-                                            rm_string_literal(src)))))))))))
+                                            rm_string_literal(
+                                                rm_comments(src))))))))))))
 
 
 # main starts
@@ -509,29 +463,33 @@ ENUM_BLOCK = LBRACE + ENUM_VALUE_COMBO_LIST("value_list") + RBRACE
 cpp_cache = io.StringIO()
 head_cache = io.StringIO()
 
-for ii_file_path in scan_dir(BUILD_DIR):
-    print("scanning %s" % ii_file_path)
+def extract_enums(header_path):
+    print("scanning %s" % header_path)
 
-    header_content_dict = extract_header_contents(open(ii_file_path, 'r').read())
-    for header_path in header_content_dict:
-        header_content = header_content_dict[header_path]
-        header_name = header_path.split('/')[-1]
-        header_included = False
-        for enum, start, stop in ENUM_BLOCK.scan_string(process(header_content)):
-            if not header_included:
-                header_included = True
-                output_head_file.write("#include \"%s\"\n" % header_name)
+    header_content = open(header_path, 'r').read()
+    header_name = header_path.split('/')[-1]
+    header_included = False
+    for enum, start, stop in ENUM_BLOCK.scan_string(process(header_content)):
+        if not header_included:
+            header_included = True
+            output_head_file.write("#include \"%s\"\n" % header_name)
 
-            func_head_inserted = False
-            for item in enum.value_list:
-                if not func_head_inserted:
-                    func_head_inserted = True
-                    head_cache.write("std::string enum2str(%s e);\n" % '::'.join(item.value.split('::')[0:-1]))
-                    cpp_cache.write("std::string enum2str(%s e) {\n" % '::'.join(item.value.split('::')[0:-1]))
-                    cpp_cache.write("  switch (e) {\n")
+        func_head_inserted = False
+        for item in enum.value_list:
+            if not func_head_inserted:
+                func_head_inserted = True
+                head_cache.write("std::string enum2str(%s e);\n" % '::'.join(item.value.split('::')[0:-1]))
+                cpp_cache.write("std::string enum2str(%s e) {\n" % '::'.join(item.value.split('::')[0:-1]))
+                cpp_cache.write("  switch (e) {\n")
+            cpp_cache.write("    case %s: return \"%s\";\n" % (item.value, item.value.split('::')[-1]))
 
-                cpp_cache.write("    case %s: return \"%s\";\n" % (item.value, item.value.split('::')[-1]))
-            cpp_cache.write("    default: return std::to_string(static_cast<int>(e));\n  }\n}\n\n")
+        cpp_cache.write("    default: return std::to_string(static_cast<int>(e));\n  }\n}\n\n")
+
+for header_path in find_headers_recursively(PROJECT_DIR, EXCLUDE_HEADERS_LIST):
+    extract_enums(header_path)
+
+for header_path in WILD_CARD_HEADERS_LIST:
+    extract_enums(header_path)
 
 output_cpp_file.write(cpp_cache.getvalue())
 output_head_file.write("\n")
