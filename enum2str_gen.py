@@ -14,7 +14,7 @@ import io
 import re
 import pyparsing as pp
 
-DEBUG_MODE = True
+DEBUG_MODE = False
 
 PROJECT_DIR = "/home/dan/tools/enum2str-main" # abs path
 EXCLUDE_HEADERS_LIST = [
