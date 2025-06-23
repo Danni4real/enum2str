@@ -5,7 +5,7 @@
 # 2. pyparsing version >= 3.1.0;
 
 # usage:
-# 1. set PROJECT_DIR, EXCLUDE_HEADERS_LIST and WILD_CARD_HEADERS_LIST;
+# 1. set FOLDER_LIST, EXCLUDE_FOLDER_LIST, EXCLUDE_HEADER_LIST and STANDALONE_HEADER_LIST;
 # 2. run this script;
 # 3. use generated code(.h + .cpp);
 
@@ -16,14 +16,22 @@ import pyparsing as pp
 
 DEBUG_MODE = False
 
-PROJECT_DIR = "/home/dan/tools/enum2str-main" # abs path
-EXCLUDE_HEADERS_LIST = [
-    # if you want to exclude some headers in the project or
-    # some headers cause the script run failed,
-    # add their abs paths here
+# add folder abs path below if you want to scan headers in this folder (recursively)
+FOLDER_LIST = [
+    "/home/dan/tools/enum2str-main"
+]
+
+# add folder abs path below if you do not want to scan headers in this folder (which should be a sub folder of folders in FOLDER_LIST)
+EXCLUDED_SUB_FOLDER_LIST = [
+]
+
+# add header abs path below if you do not want to scan this header (which should be contained by folders of FOLDER_LIST)
+EXCLUDED_HEADER_LIST = [
     "/home/dan/tools/enum2str-main/enum2str_gen_test.h"
 ]
-WILD_CARD_HEADERS_LIST = [ # if you want to use enums which are not in the project, add their headers' abs paths here
+
+# add header abs path below which you want to scan (which should *NOT* be contained by folders of FOLDER_LIST)
+STANDALONE_HEADER_LIST = [
 ]
 
 OUTPUT_CPP_FILE = 'enum2str.cpp'  # generated src file
@@ -40,14 +48,28 @@ KEYWORD_PUBLIC = 'public'
 KEYWORD_PROTECTED = 'protected'
 KEYWORD_ATTRIBUTE = '__attribute__'
 
-def find_headers_recursively(dir, exclude_headers_path_list):
-    for root, dirs, files in os.walk(dir, topdown=True):
-        for file in files:
-            if file.endswith('.h') or file.endswith('.hpp'):
-                path = os.path.join(root, file)
-                if path not in exclude_headers_path_list:
-                    yield path
+def file_contained_in_folders(file_path, folders_path_list):
+    for folder_path in folders_path_list:
+        if folder_path in file_path:
+            return True
 
+    return False
+
+def find_headers_recursively(folder_list, exclude_folder_list, exclude_header_list):
+    for folder_path in folder_list:
+        for root, dirs, files in os.walk(folder_path, topdown=True):
+            for file in files:
+                if file.endswith('.h') or file.endswith('.hpp'):
+                    path = os.path.join(root, file)
+                    if path not in exclude_header_list and not file_contained_in_folders(path, exclude_folder_list):
+                        yield path
+
+def remove_duplicates(lst):
+    ret = []
+    for item in lst:
+        if item not in ret:
+            ret.append(item)
+    return ret
 
 # remove potential '{' and '}' in string literal
 def rm_string_literal(src):
@@ -485,10 +507,18 @@ def extract_enums(header_path):
 
         cpp_cache.write("    default: return std::to_string(static_cast<int>(e));\n  }\n}\n\n")
 
-for header_path in find_headers_recursively(PROJECT_DIR, EXCLUDE_HEADERS_LIST):
-    extract_enums(header_path)
+header_path_list = []
 
-for header_path in WILD_CARD_HEADERS_LIST:
+for header_path in find_headers_recursively(FOLDER_LIST, EXCLUDED_SUB_FOLDER_LIST, EXCLUDED_HEADER_LIST):
+    header_path_list.append(header_path)
+
+for header_path in STANDALONE_HEADER_LIST:
+    if not file_contained_in_folders(header_path, FOLDER_LIST):
+        header_path_list.append(header_path)
+
+header_path_list = remove_duplicates(header_path_list)
+
+for header_path in header_path_list:
     extract_enums(header_path)
 
 output_cpp_file.write(cpp_cache.getvalue())
