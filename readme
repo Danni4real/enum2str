@@ -8,6 +8,6 @@ Dependency:
 2. pyparsing >= 3.1.0;
 
 Usage:
-1. set PROJECT_DIR, EXCLUDE_HEADERS_LIST and WILD_CARD_HEADERS_LIST in enum2str_gen.py;
+1. set set FOLDER_LIST, EXCLUDED_SUB_FOLDER_LIST, EXCLUDE_HEADER_LIST and STANDALONE_HEADER_LIST in enum2str_gen.py;
 2. run enum2str_gen.py to generate enum2str.cpp and enum2str.h;
 3. include enum2str.h in C++ src files;
