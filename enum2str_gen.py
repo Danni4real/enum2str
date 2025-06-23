@@ -5,7 +5,7 @@
 # 2. pyparsing version >= 3.1.0;
 
 # usage:
-# 1. set FOLDER_LIST, EXCLUDED_SUB_FOLDER_LIST, EXCLUDE_HEADER_LIST and STANDALONE_HEADER_LIST;
+# 1. set FOLDER_LIST, EXCLUDED_SUB_FOLDER_LIST, EXCLUDED_HEADER_LIST and STANDALONE_HEADER_LIST;
 # 2. run this script;
 # 3. use generated code(.h + .cpp);
 
