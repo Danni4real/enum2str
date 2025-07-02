@@ -442,12 +442,6 @@ def rm_comments(src):
     src = re.sub(r'//.*', '', src)
     return src
 
-def rm_typedef_keyword(src):
-    src = re.sub(r'\btypedef\b', '', src)
-    if DEBUG_MODE:
-        print("\n\nAfter rm_typedef_keyword:\n%s" % src)
-    return src
-
 
 def file_contain_enum_keyword(file_path):
     with open(file_path, 'r') as f:
@@ -543,10 +537,9 @@ def process(src):
                                         rm_using_statement(
                                             rm__attribute__(
                                                 to_list(
-                                                    rm_typedef_keyword(
-                                                        add_extra_space(
-                                                            rm_string_literal(
-                                                                rm_comments(src))))))))))))))))
+                                                    add_extra_space(
+                                                        rm_string_literal(
+                                                            rm_comments(src)))))))))))))))
 
 
 # main starts
