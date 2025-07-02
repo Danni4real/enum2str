@@ -12,6 +12,7 @@
 import os
 import io
 import re
+import traceback
 import pyparsing as pp
 
 DEBUG_MODE = False
@@ -173,7 +174,8 @@ def add_extra_space(src):
     ret = (
         src.replace(';', ' ; ').replace(':', ' : ').replace(' :  : ', '::').replace('{', ' { ').replace('}', ' } ').
         replace(',', ' , ').replace('=', ' = ').replace('<', ' < ').replace('>', ' > ').
-        replace('\t', ' ').replace('\n', ' ').replace('\r', ' '))
+        replace('\t', ' ').replace('\n', ' ').replace('\r', ' ').
+        replace('(', ' ( ').replace(')', ' ) '))
 
     if DEBUG_MODE:
         print("\n\nAfter add_extra_space:\n%s" % ret)
@@ -440,20 +442,111 @@ def rm_comments(src):
     src = re.sub(r'//.*', '', src)
     return src
 
+def rm_typedef_keyword(src):
+    src = re.sub(r'\btypedef\b', '', src)
+    if DEBUG_MODE:
+        print("\n\nAfter rm_typedef_keyword:\n%s" % src)
+    return src
+
+
+def file_contain_enum_keyword(file_path):
+    with open(file_path, 'r') as f:
+        content = f.read()
+    if re.search(r'\benum\b', content):
+        return True
+    else:
+        return False
+
+
+def trim_enum_contained_function_definition(lst):
+    lst_len = len(lst)
+    ret_lst = []
+    skip = 0
+
+    for i in range(lst_len):
+        if skip > 0:
+            skip -= 1
+            continue
+
+        if lst[i] == KEYWORD_ENUM:
+            for j in range(i, lst_len, 1):
+                if lst[j] == '(' or lst[j] == ')' or lst[j] == '{':
+                    if lst[j] == '{':
+                        ret_lst.append(lst[i])
+                    break
+        else:
+            ret_lst.append(lst[i])
+
+    if DEBUG_MODE:
+        print("\n\nAfter trim_enum_contained_function_definition:\n%s" % " ".join(ret_lst))
+    return ret_lst
+
+
+def trim_enum_declarations_or_enum_contained_function_declaration(lst):
+    lst_len = len(lst)
+    ret_lst = []
+    skip = 0
+
+    for i in range(lst_len):
+        if skip > 0:
+            skip -= 1
+            continue
+
+        if lst[i] == KEYWORD_ENUM:
+            for j in range(i, lst_len, 1):
+                if lst[j] == ';' or lst[j] == '{':
+                    if lst[j] == '{':
+                        ret_lst.append(lst[i])
+                    break
+        else:
+            ret_lst.append(lst[i])
+
+    if DEBUG_MODE:
+        print("\n\nAfter rm_enum_declarations_or_enum_contained_function_declaration:\n%s" % " ".join(ret_lst))
+    return ret_lst
+
+
+def trim_non_struct_definition_but_contain_struct_keyword_code(lst):
+    lst_len = len(lst)
+    ret_lst = []
+    skip = 0
+
+    for i in range(lst_len):
+        if skip > 0:
+            skip -= 1
+            continue
+
+        if lst[i] == KEYWORD_STRUCT or lst[i] == KEYWORD_CLASS:
+            for j in range(i, lst_len, 1):
+                if lst[j] == ';' or lst[j] == '(' or lst[j] == ')' or lst[j] == '{':
+                    if lst[j] == '{':
+                        ret_lst.append(lst[i])
+                    break
+        else:
+            ret_lst.append(lst[i])
+
+    if DEBUG_MODE:
+        print("\n\nAfter rm_enum_declarations_or_enum_contained_function_declaration:\n%s" % " ".join(ret_lst))
+    return ret_lst
+
 
 def process(src):
     return sink_namespace(
         rm_other_irrelevant(
             rm_irrelevant_in_class(
                 trim_abnormal_enum(
-                    trim_abnormal_class(
-                        rm_not_class_define(
-                            rm_using_statement(
-                                rm__attribute__(
-                                    to_list(
-                                        add_extra_space(
-                                            rm_string_literal(
-                                                rm_comments(src))))))))))))
+                    trim_enum_contained_function_definition(
+                        trim_enum_declarations_or_enum_contained_function_declaration(
+                            trim_non_struct_definition_but_contain_struct_keyword_code(
+                                trim_abnormal_class(
+                                    rm_not_class_define(
+                                        rm_using_statement(
+                                            rm__attribute__(
+                                                to_list(
+                                                    rm_typedef_keyword(
+                                                        add_extra_space(
+                                                            rm_string_literal(
+                                                                rm_comments(src))))))))))))))))
 
 
 # main starts
@@ -485,8 +578,14 @@ ENUM_BLOCK = LBRACE + ENUM_VALUE_COMBO_LIST("value_list") + RBRACE
 cpp_cache = io.StringIO()
 head_cache = io.StringIO()
 
+
 def extract_enums(header_path):
-    print("scanning %s" % header_path)
+    if DEBUG_MODE:
+        print("scanning %s" % header_path)
+
+    tmp_cpp_cache = io.StringIO()
+    tmp_head_cache = io.StringIO()
+    tmp_include_cache = io.StringIO()
 
     header_content = open(header_path, 'r').read()
     header_name = header_path.split('/')[-1]
@@ -494,18 +593,21 @@ def extract_enums(header_path):
     for enum, start, stop in ENUM_BLOCK.scan_string(process(header_content)):
         if not header_included:
             header_included = True
-            output_head_file.write("#include \"%s\"\n" % header_name)
+            tmp_include_cache.write("#include \"%s\"\n" % header_name)
 
         func_head_inserted = False
         for item in enum.value_list:
             if not func_head_inserted:
                 func_head_inserted = True
-                head_cache.write("std::string enum2str(%s e);\n" % '::'.join(item.value.split('::')[0:-1]))
-                cpp_cache.write("std::string enum2str(%s e) {\n" % '::'.join(item.value.split('::')[0:-1]))
-                cpp_cache.write("  switch (e) {\n")
-            cpp_cache.write("    case %s: return \"%s\";\n" % (item.value, item.value.split('::')[-1]))
+                tmp_head_cache.write("std::string enum2str(%s e);\n" % '::'.join(item.value.split('::')[0:-1]))
+                tmp_cpp_cache.write("std::string enum2str(%s e) {\n" % '::'.join(item.value.split('::')[0:-1]))
+                tmp_cpp_cache.write("  switch (e) {\n")
+            tmp_cpp_cache.write("    case %s: return \"%s\";\n" % (item.value, item.value.split('::')[-1]))
 
-        cpp_cache.write("    default: return std::to_string(static_cast<int>(e));\n  }\n}\n\n")
+        tmp_cpp_cache.write("    default: return std::to_string(static_cast<int>(e));\n  }\n}\n\n")
+
+    return tmp_cpp_cache, tmp_head_cache, tmp_include_cache
+
 
 header_path_list = []
 
@@ -519,7 +621,19 @@ for header_path in STANDALONE_HEADER_LIST:
 header_path_list = remove_duplicates(header_path_list)
 
 for header_path in header_path_list:
-    extract_enums(header_path)
+    try:
+        if not file_contain_enum_keyword(header_path):
+            continue
+
+        tmp_cpp_cache, tmp_head_cache, tmp_include_cache = extract_enums(header_path)
+        cpp_cache.write(tmp_cpp_cache.getvalue())
+        head_cache.write(tmp_head_cache.getvalue())
+        output_head_file.write(tmp_include_cache.getvalue())
+    except Exception as e:
+        print(f"\033[31mscan {header_path} failed!!!\033[0m")
+        if DEBUG_MODE:
+            traceback.print_exc()
+            exit()
 
 output_cpp_file.write(cpp_cache.getvalue())
 output_head_file.write("\n")
