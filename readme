@@ -8,7 +8,7 @@ Dependency:
 2. pyparsing >= 3.1.0;
 
 Limitations:
-1. will gen failed if some header include macro related enum definitions, such as:
+1. will gen failed if header include macro related enum/class/struct/namespace/... definitions, such as:
   #ifdef X86
     enum X86_ENUM {
   #else
