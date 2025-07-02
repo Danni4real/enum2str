@@ -4,6 +4,7 @@
 #include <string>
 #include <chrono>
 
+enum ForwardDeclarationEnum: int;
 class ForwardDeclarationClass;
 struct ForwardDeclarationStruct;
 
@@ -50,6 +51,12 @@ class Class_1 : public std::string { // test comments {{
    struct {}anony_struct;
    enum Enum{EnumValue_1,EnumValue_2};
 
+   enum Enum function_delaration_with_enum_ret();
+   enum Enum function_definition_with_enum_ret() {return EnumValue_1;}
+   
+   void function_delaration_with_enum_arg(enum Enum e);
+   void function_definition_with_enum_arg(enum Enum e) {}
+
    struct Struct_1{
      enum EnumInt :int{EnumIntValue_1=-1, EnumIntValue_2 =2,};  // test comments {{
 
@@ -67,6 +74,12 @@ enum class EnumClassUint : unsigned int{EnumClassUintValue_1=1,EnumClassUintValu
 }
 }
 
+class Class_1 function_delaration_with_ret_class_keyword();
+inline class Class_1 function_definition_with_ret_class_keyword() {return Class_1{};}
+
+void function_delaration_with_arg_class_keyword(class Class_1 c);
+inline void function_definition_with_arg_class_keyword(class Class_1 c) {}
+
 enum struct EnumStruct{EnumStructValue_1,EnumStructValue_2};
 enum struct EnumStructInt :int{EnumStructIntValue_1=-1,EnumStructIntValue_2 =2,};
 enum struct EnumStructUint : unsigned int{
@@ -78,7 +91,6 @@ enum struct EnumStructUint : unsigned int{
    * {{
    */
 #endif //ENUM2STR_GEN_TEST_H
-
 
 
 
