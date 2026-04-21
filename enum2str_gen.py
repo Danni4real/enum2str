@@ -37,6 +37,7 @@ STANDALONE_HEADER_LIST = [
 
 # add enum type below which you want to use in the project (empty ENUM_LIST means you want to use all enums that can be scanned)
 ENUM_LIST = [
+    "Color"
 ]
 
 OUTPUT_CPP_FILE = 'enum2str.cpp'  # generated src file
