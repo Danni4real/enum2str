@@ -7,4 +7,10 @@ enum Color {
   Yellow
 };
 
+enum Number {
+  One,
+  Two,
+  Three
+};
+
 #endif
