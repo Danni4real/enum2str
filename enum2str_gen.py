@@ -35,6 +35,10 @@ EXCLUDED_HEADER_LIST = [
 STANDALONE_HEADER_LIST = [
 ]
 
+# add enum type below which you want to use in the project (empty ENUM_LIST means you want to use all enums that can be scanned)
+ENUM_LIST = [
+]
+
 OUTPUT_CPP_FILE = 'enum2str.cpp'  # generated src file
 OUTPUT_HEAD_FILE = 'enum2str.h'  # generated header file
 
@@ -584,6 +588,16 @@ def extract_enums(header_path):
     header_name = header_path.split('/')[-1]
     header_included = False
     for enum, start, stop in ENUM_BLOCK.scan_string(process(header_content)):
+        # 获取当前枚举的完整类型名（带命名空间）
+        if not enum.value_list:
+            continue
+
+        enum_full_name = '::'.join(enum.value_list[0].value.split('::')[0:-1])
+
+        # 核心过滤逻辑：仅保留 ENUM_LIST 中的枚举，列表为空则保留全部
+        if ENUM_LIST and enum_full_name not in ENUM_LIST:
+            continue
+
         if not header_included:
             header_included = True
             tmp_include_cache.write("#include \"%s\"\n" % header_name)
@@ -592,8 +606,8 @@ def extract_enums(header_path):
         for item in enum.value_list:
             if not func_head_inserted:
                 func_head_inserted = True
-                tmp_head_cache.write("std::string enum2str(%s e);\n" % '::'.join(item.value.split('::')[0:-1]))
-                tmp_cpp_cache.write("std::string enum2str(%s e) {\n" % '::'.join(item.value.split('::')[0:-1]))
+                tmp_head_cache.write("std::string enum2str(%s e);\n" % enum_full_name)
+                tmp_cpp_cache.write("std::string enum2str(%s e) {\n" % enum_full_name)
                 tmp_cpp_cache.write("  switch (e) {\n")
             tmp_cpp_cache.write("    case %s: return \"%s\";\n" % (item.value, item.value.split('::')[-1]))
 
