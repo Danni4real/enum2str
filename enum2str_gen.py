@@ -643,6 +643,12 @@ for header_path in header_path_list:
             traceback.print_exc()
             exit()
 
+head_cache.write("\n")
+head_cache.write("template <typename T>\n")
+head_cache.write("std::string enum2str(T e) {\n")
+head_cache.write("  return std::to_string(static_cast<int>(e));\n")
+head_cache.write("}\n")
+
 output_cpp_file.write(cpp_cache.getvalue())
 output_head_file.write("\n")
 output_head_file.write(head_cache.getvalue())
